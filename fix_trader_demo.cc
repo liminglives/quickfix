@@ -96,6 +96,7 @@ void Application::onLogon( const FIX::SessionID& sessionID )
 }
 
 void Application::onMessage( const FIX42::UserLogonResponse& msg, const FIX::SessionID& session ) {
+    std::cout << "onMessage UserLogonResponse" << std::endl;
   Test();
 }
 
@@ -108,7 +109,7 @@ void Application::fromApp( const FIX::Message& message, const FIX::SessionID& se
 throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType )
 {
   crack( message, sessionID );
-  std::cout << std::endl << "IN: " << message << std::endl;
+  std::cout << std::endl << "fromAPP IN: " << message << std::endl;
 }
 
 void Application::toApp( FIX::Message& message, const FIX::SessionID& )
@@ -122,7 +123,7 @@ throw( FIX::DoNotSend )
   }
   catch ( FIX::FieldNotFound& ) {}
 
-  std::cout << std::endl << "OUT: " << message << std::endl;
+  std::cout << std::endl << "toApp OUT: " << message << std::endl;
 }
 
 void Application::onMessage( const FIX42::ExecutionReport& msg, const FIX::SessionID& ) {
@@ -147,6 +148,7 @@ void Application::run()
 
 void Application::Test() {
   {
+    std::cout << "Test" << std::endl;
     auto now = system_clock::now();
     time_t tnow = system_clock::to_time_t(now);
     tm *date = std::localtime(&tnow);
@@ -184,6 +186,7 @@ std::string Application::NextOrderRef() {
 
 FIX42::NewOrderSingle Application::SendNewOrder()
 {
+    std::cout << "SendNewOrder" << std::endl;
   FIX42::NewOrderSingle newOrderSingle(
       FIX::ClOrdID(NextOrderRef()),
       FIX::HandlInst(FIX::HandlInst_AUTOMATED_EXECUTION_ORDER_PRIVATE_NO_BROKER_INTERVENTION),
@@ -212,6 +215,7 @@ FIX42::NewOrderSingle Application::SendNewOrder()
 
 FIX42::OrderCancelRequest Application::SendCancelRequest(const std::string& ori_order_id)
 {
+    std::cout << "SendCancelRequest" << std::endl;
   FIX42::OrderCancelRequest orderCancelRequest(
       FIX::OrigClOrdID(ori_order_id),
       FIX::ClOrdID(NextOrderRef()),
@@ -232,6 +236,7 @@ FIX42::OrderCancelRequest Application::SendCancelRequest(const std::string& ori_
 }
 
 void Application::SendPositionRequest() {
+    std::cout << "SendPositionRequest" << std::endl;
   try {
     FIX42::RequestForPosition request;
     request.set(FIX::Account("RUITIAN"));
@@ -248,6 +253,7 @@ void Application::SendPositionRequest() {
 }
 
 void Application::SendBalanceRequest() {
+    std::cout << "SendBalanceRequest" << std::endl;
   try {
     FIX42::RequestForBalance request;
     request.set(FIX::Account("RUITIAN"));
@@ -274,6 +280,9 @@ int main( int argc, char** argv )
     Application application;
     FIX::FileStoreFactory storeFactory( settings );
     FIX::FileLogFactory logFactory( settings );
+    std::cout << "create" << std::endl;
+    logFactory.create();
+    std::cout << "end create" << std::endl;
     FIX::SocketInitiator initiator( application, storeFactory, settings, logFactory );
 
     initiator.start();
