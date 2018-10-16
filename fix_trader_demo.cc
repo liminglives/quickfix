@@ -35,6 +35,8 @@
 
 using namespace std::chrono;
 
+bool used = false;
+
 class Application :
       public FIX::Application,
       public FIX::MessageCracker
@@ -43,14 +45,26 @@ public:
   void run();
 
 private:
-  void onCreate( const FIX::SessionID& ) {}
+  void onCreate( const FIX::SessionID& ) { std::cout << "onCreate" << std::endl;}
   void onLogon( const FIX::SessionID& sessionID );
   void onLogout( const FIX::SessionID& sessionID );
-  void toAdmin( FIX::Message&, const FIX::SessionID& ) {}
+
+  void toAdmin( FIX::Message& msg, const FIX::SessionID& ) { 
+
+      //if (!used) {
+      //msg.getHeader().setField(FIX::MsgType("4"));
+      //msg.setField(FIX::GapFillFlag(false));
+      //msg.setField(FIX::NewSeqNo(404));
+      //used = true;
+      //}
+
+      std::cout << "toAdmin, msg:" << msg << std::endl;
+  }
+
   void toApp( FIX::Message&, const FIX::SessionID& )
   throw( FIX::DoNotSend ) override;
-  void fromAdmin( const FIX::Message&, const FIX::SessionID& )
-  throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon ) {}
+  void fromAdmin( const FIX::Message& msg, const FIX::SessionID& )
+  throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon ) { std::cout << "fromAdmin, msg:" << msg << std::endl;}
   void fromApp( const FIX::Message& message, const FIX::SessionID& sessionID )
   throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType );
 
@@ -67,12 +81,17 @@ private:
   void SendPositionRequest();
   void SendBalanceRequest();
 
+  std::string getRequestID() {
+      return std::to_string(time_start_++);
+  }
+
 private:
   void Test();
 
   long begin_epoch_secs_;
   std::string begin_epoch_secs_str_;
   int order_ref_;
+  int time_start_;
 };
 
 const std::string kFixConfigFile = "./FIX42.xml";
@@ -83,7 +102,7 @@ void Application::onLogon( const FIX::SessionID& sessionID )
   std::cout << std::endl << "Logon - " << sessionID << std::endl;
 
   FIX42::UserLogonRequest msg(
-      FIX::RequestID(begin_epoch_secs_str_),
+      FIX::RequestID(getRequestID()),
       FIX::ClientID("RUITIAN"),
       FIX::EncryptMethod(0),
       FIX::LogonPasswd("RUITIAN"));
@@ -93,11 +112,13 @@ void Application::onLogon( const FIX::SessionID& sessionID )
   msg.getHeader().setField(FIX::SenderCompID("RUITIANUAT"));
   msg.getHeader().setField(FIX::TargetCompID("CICCIMSUAT"));
   FIX::Session::sendToTarget(msg);
+  std::cout << std::endl << "end Logon - " << sessionID << std::endl;
 }
 
 void Application::onMessage( const FIX42::UserLogonResponse& msg, const FIX::SessionID& session ) {
-    std::cout << "onMessage UserLogonResponse" << std::endl;
-  Test();
+    std::cout << "$$$$$$$$$$$$$$ onMessage UserLogonResponse:" << std::endl; 
+
+  //Test();
 }
 
 void Application::onLogout( const FIX::SessionID& sessionID )
@@ -121,7 +142,9 @@ throw( FIX::DoNotSend )
     message.getHeader().getField( possDupFlag );
     if ( possDupFlag ) throw FIX::DoNotSend();
   }
-  catch ( FIX::FieldNotFound& ) {}
+  catch ( FIX::FieldNotFound& e) {
+      std::cout << "toApp exception:" << e.what() << std::endl;
+  }
 
   std::cout << std::endl << "toApp OUT: " << message << std::endl;
 }
@@ -141,39 +164,12 @@ void Application::onMessage( const FIX42::BalanceReport& msg, const FIX::Session
 
 void Application::run()
 {
+    time_start_ = int(std::time(0));
   std::cout << "init xml " << FIX::Message::InitializeXML(kFixConfigFile) << std::endl;
 
-  std::this_thread::sleep_for(std::chrono::seconds(10));
-}
-
-void Application::Test() {
-  {
-    std::cout << "Test" << std::endl;
-    auto now = system_clock::now();
-    time_t tnow = system_clock::to_time_t(now);
-    tm *date = std::localtime(&tnow);
-    date->tm_hour = 0;
-    date->tm_min = 0;
-    date->tm_sec = 0;
-    auto midnight = system_clock::from_time_t(std::mktime(date));
-    begin_epoch_secs_ = duration_cast<seconds>(now - midnight).count();
-    begin_epoch_secs_str_ = std::to_string(begin_epoch_secs_);
-  }
-  order_ref_ = 1;
-  // sleep for 2 seconds for real logon
-  //std::this_thread::sleep_for(std::chrono::seconds(2));
-
-  {
-    auto order = SendNewOrder();
-    FIX::ClOrdID fix_order_id;
-    order.get(fix_order_id);
-    SendCancelRequest(fix_order_id.getValue());
-    // std::this_thread::sleep_for(std::chrono::seconds(5));
-  }
-
-  {
-    SendPositionRequest();
-    SendBalanceRequest();
+  while (1){
+    std::this_thread::sleep_for(std::chrono::seconds(30));
+    std::cout << " ===== ===== ===== " << std::endl;
   }
 }
 
@@ -188,17 +184,17 @@ FIX42::NewOrderSingle Application::SendNewOrder()
 {
     std::cout << "SendNewOrder" << std::endl;
   FIX42::NewOrderSingle newOrderSingle(
-      FIX::ClOrdID(NextOrderRef()),
+      FIX::ClOrdID(getRequestID()),
       FIX::HandlInst(FIX::HandlInst_AUTOMATED_EXECUTION_ORDER_PRIVATE_NO_BROKER_INTERVENTION),
-      FIX::Symbol("600000"),
+      FIX::Symbol("600016"),
       FIX::Side(FIX::Side_BUY),
       FIX::TransactTime(),
       FIX::OrdType(FIX::OrdType_LIMIT));
 
   newOrderSingle.set(FIX::SecurityExchange("XSSC")); // XSEC for sz
   newOrderSingle.set(FIX::Currency("CNY"));
-  newOrderSingle.set(FIX::OrderQty(1000));
-  newOrderSingle.set(FIX::Price(12.53));
+  newOrderSingle.set(FIX::OrderQty(300));
+  newOrderSingle.set(FIX::Price(6.00));
   newOrderSingle.set(FIX::Account("RUITIAN"));
   newOrderSingle.set(FIX::TimeInForce(FIX::TimeInForce_DAY));
 
@@ -218,8 +214,8 @@ FIX42::OrderCancelRequest Application::SendCancelRequest(const std::string& ori_
     std::cout << "SendCancelRequest" << std::endl;
   FIX42::OrderCancelRequest orderCancelRequest(
       FIX::OrigClOrdID(ori_order_id),
-      FIX::ClOrdID(NextOrderRef()),
-      FIX::Symbol("600000"),
+      FIX::ClOrdID(getRequestID()),
+      FIX::Symbol("600036"),
       FIX::Side(FIX::Side_BUY),
       FIX::TransactTime());
 
@@ -240,7 +236,7 @@ void Application::SendPositionRequest() {
   try {
     FIX42::RequestForPosition request;
     request.set(FIX::Account("RUITIAN"));
-    request.set(FIX::RequestID(begin_epoch_secs_str_));
+    request.set(FIX::RequestID(getRequestID()));
     request.getHeader().setField(FIX::OnBehalfOfCompID("RUITIAN"));
     request.getHeader().setField(FIX::SenderCompID("RUITIANUAT"));
     request.getHeader().setField(FIX::TargetCompID("CICCIMSUAT"));
@@ -257,7 +253,7 @@ void Application::SendBalanceRequest() {
   try {
     FIX42::RequestForBalance request;
     request.set(FIX::Account("RUITIAN"));
-    request.set(FIX::RequestID(begin_epoch_secs_str_));
+    request.set(FIX::RequestID(getRequestID()));
     request.getHeader().setField(FIX::OnBehalfOfCompID("RUITIAN"));
     request.getHeader().setField(FIX::SenderCompID("RUITIANUAT"));
     request.getHeader().setField(FIX::TargetCompID("CICCIMSUAT"));
@@ -268,6 +264,39 @@ void Application::SendBalanceRequest() {
     std::cerr << "SendBalanceRequest Failed: " << e.what() << std::endl;
   }
 }
+
+void Application::Test() {
+  {
+    std::cout << "Test" << std::endl;
+    auto now = system_clock::now();
+    time_t tnow = system_clock::to_time_t(now);
+    tm *date = std::localtime(&tnow);
+    date->tm_hour = 0;
+    date->tm_min = 0;
+    date->tm_sec = 0;
+    auto midnight = system_clock::from_time_t(std::mktime(date));
+    begin_epoch_secs_ = duration_cast<seconds>(now - midnight).count();
+    begin_epoch_secs_str_ = std::to_string(begin_epoch_secs_);
+  }
+  order_ref_ = 1;
+  // sleep for 2 seconds for real logon
+  std::this_thread::sleep_for(std::chrono::seconds(2));
+
+  {
+    //auto order = SendNewOrder();
+    //FIX::ClOrdID fix_order_id;
+    //order.get(fix_order_id);
+    //SendCancelRequest("2536909028");
+    //std::this_thread::sleep_for(std::chrono::seconds(5));
+  }
+
+  {
+    SendPositionRequest();
+    SendBalanceRequest();
+  }
+}
+
+
 
 int main( int argc, char** argv )
 {
@@ -294,4 +323,5 @@ int main( int argc, char** argv )
     std::cerr << e.what();
     return 1;
   }
+  std::cout << "main end" << std::endl;
 }
